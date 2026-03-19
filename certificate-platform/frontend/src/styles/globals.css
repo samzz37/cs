@@ -1,0 +1,141 @@
+/* Global Styles */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background-color: #f9fafb;
+    color: #1f2937;
+    transition: all 0.3s ease;
+}
+
+body.dark {
+    background-color: #111827;
+    color: #f3f4f6;
+}
+
+
+/* Scrollbar */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+
+/* Animations */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* Utilities */
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.grid-auto {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-primary {
+    @apply px-4 py-2 bg-blue-600 text-white rounded-lg hover: bg-blue-700 transition;
+}
+
+.btn-secondary {
+    @apply px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover: bg-gray-300 transition;
+}
+
+.card {
+    @apply bg-white dark: bg-gray-800 rounded-lg shadow-md p-6 transition;
+}
+
+.input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus: outline-none focus: ring-2 focus: ring-blue-500;
+}
+
+
+/* Loading Spinner */
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #1f4788;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}

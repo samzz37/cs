@@ -1,0 +1,30 @@
+{
+    "typeCheckingMode": "basic",
+    "pythonVersion": "3.14",
+    "pythonPlatform": "Windows",
+    "include": [
+        "backend",
+        "certificate-engine",
+        "exports",
+        "monitoring",
+        "ranking-module"
+    ],
+    "exclude": [
+        "**/node_modules",
+        "**/__pycache__",
+        "**/.*",
+        "frontend",
+        "logs",
+        "exports/*.pyc"
+    ],
+    "extraPaths": [
+        "backend",
+        "."
+    ],
+    "reportMissingImports": false,
+    "reportMissingModuleSource": false,
+    "reportUndefinedVariable": false,
+    "reportGeneralTypeIssues": true,
+    "reportIncompatibleMethodOverride": true,
+    "reportIncompatibleVariableOverride": true
+}
