@@ -1,14 +1,14 @@
 """
 Main FastAPI application and WebSocket handling
 """
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 import json
 import asyncio
-from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Set, TYPE_CHECKING
+from datetime import datetime, timezone
+from typing import List, Dict, Set, Any, TYPE_CHECKING
 import uuid
 import os
 import io
@@ -27,8 +27,8 @@ if TYPE_CHECKING:
 
 from .database import get_db, engine, Base
 from . import models, schemas, crud
-from .auth import create_access_token, verify_token
-from .utils import QRCodeGenerator, CertificateNumberGenerator, SystemMonitor
+from .auth import create_access_token, get_current_user
+from .utils import SystemMonitor
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -78,7 +78,7 @@ class ConnectionManager:
             if not self.user_sessions[user_id]:
                 del self.user_sessions[user_id]
     
-    async def broadcast(self, message: dict):
+    async def broadcast(self, message: Dict[str, Any]):
         """Broadcast message to all connected clients"""
         for connection in self.active_connections.values():
             try:
@@ -86,7 +86,7 @@ class ConnectionManager:
             except Exception:
                 pass
     
-    async def send_personal(self, session_id: str, message: dict):
+    async def send_personal(self, session_id: str, message: Dict[str, Any]):
         """Send message to specific session"""
         if session_id in self.active_connections:
             await self.active_connections[session_id].send_json(message)
@@ -100,7 +100,7 @@ manager = ConnectionManager()
 # ==================== Authentication Routes ====================
 
 @app.post("/api/auth/register", response_model=schemas.UserResponse)
-def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
+def register(user: schemas.UserCreate, db: Session = Depends(get_db)) -> schemas.UserResponse:
     """Register a new user"""
     existing = crud.UserCRUD.get_user_by_email(db, user.email)
     if existing:
@@ -110,7 +110,7 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     return db_user
 
 @app.post("/api/auth/login", response_model=schemas.TokenResponse)
-def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
+def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)) -> schemas.TokenResponse:
     """Login user"""
     user = crud.UserCRUD.get_user_by_username(db, credentials.username)
     
@@ -132,16 +132,9 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
     }
 
 @app.get("/api/auth/me", response_model=schemas.UserResponse)
-def get_current_user(token: str = None, db: Session = Depends(get_db)):
+def get_current_user_endpoint(current_user: Dict[str, Any] = Depends(get_current_user), db: Session = Depends(get_db)) -> schemas.UserResponse:
     """Get current user"""
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    payload = verify_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    user = crud.UserCRUD.get_user(db, payload.get("sub"))
+    user = crud.UserCRUD.get_user(db, current_user["user_id"])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -150,7 +143,7 @@ def get_current_user(token: str = None, db: Session = Depends(get_db)):
 # ==================== Dashboard Routes ====================
 
 @app.get("/api/dashboard/stats")
-def get_dashboard_stats(db: Session = Depends(get_db)):
+def get_dashboard_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """Get dashboard statistics"""
     certs_today = crud.CertificateCRUD.get_certificates_today(db)
     active_users = manager.get_active_user_count()
@@ -181,11 +174,11 @@ def get_activity_logs(limit: int = 50, db: Session = Depends(get_db)):
 @app.post("/api/templates", response_model=schemas.TemplateResponse)
 def create_template(
     template: schemas.TemplateCreate,
-    user_id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
-):
+) -> schemas.TemplateResponse:
     """Create a new template"""
-    db_template = crud.TemplateCRUD.create_template(db, template, user_id)
+    db_template = crud.TemplateCRUD.create_template(db, template, current_user["user_id"])
     return db_template
 
 @app.get("/api/templates", response_model=List[schemas.TemplateResponse])
@@ -237,11 +230,11 @@ async def upload_background(
 @app.post("/api/certificates", response_model=schemas.CertificateResponse)
 def create_certificate(
     cert: schemas.CertificateCreate,
-    user_id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
-):
+) -> schemas.CertificateResponse:
     """Create a new certificate"""
-    db_cert = crud.CertificateCRUD.create_certificate(db, cert, user_id)
+    db_cert = crud.CertificateCRUD.create_certificate(db, cert, current_user["user_id"])
     return db_cert
 
 @app.get("/api/certificates", response_model=List[schemas.CertificateResponse])
@@ -286,36 +279,40 @@ def generate_certificate(cert_id: int, db: Session = Depends(get_db)):
 async def bulk_upload(
     template_id: int = Form(...),
     file: UploadFile = File(...),
-    user_id: int = None,
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
-):
+) -> Dict[str, Any]:
     """Upload bulk certificates"""
-    import pandas as pd
+    try:
+        import pandas as pd
+        
+        job_id = str(uuid.uuid4())
+        
+        # Create bulk upload job
+        bulk_job = models.BulkUploadJob(
+            job_id=job_id,
+            uploaded_by=current_user["user_id"],
+            template_id=template_id,
+            file_name=file.filename,
+            status=models.JobStatus.pending
+        )
+        db.add(bulk_job)
+        db.commit()
+        
+        # Read Excel file
+        file_content = await file.read()
+        df = pd.read_excel(io.BytesIO(file_content))
+        
+        bulk_job.total_records = len(df)
+        db.commit()
+        
+        # Process in background
+        asyncio.create_task(process_bulk_certificates(job_id, df, template_id, current_user["user_id"], db))
+        
+        return {"job_id": job_id, "message": "Bulk upload started"}
     
-    job_id = str(uuid.uuid4())
-    
-    # Create bulk upload job
-    bulk_job = models.BulkUploadJob(
-        job_id=job_id,
-        uploaded_by=user_id,
-        template_id=template_id,
-        file_name=file.filename,
-        status=models.JobStatus.pending
-    )
-    db.add(bulk_job)
-    db.commit()
-    
-    # Read Excel file
-    file_content = await file.read()
-    df = pd.read_excel(io.BytesIO(file_content))
-    
-    bulk_job.total_records = len(df)
-    db.commit()
-    
-    # Process in background
-    asyncio.create_task(process_bulk_certificates(job_id, df, template_id, user_id, db))
-    
-    return {"job_id": job_id, "message": "Bulk upload started"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # ==================== Ranking Routes ====================
 
@@ -328,7 +325,7 @@ def import_rankings(rankings: List[schemas.RankingCreate], db: Session = Depends
     # Create ranking objects with positions
     db_rankings = []
     for position, ranking in enumerate(sorted_rankings, 1):
-        ranking_dict = ranking.dict()
+        ranking_dict = ranking.model_dump()
         ranking_dict['rank_position'] = position
         db_ranking = models.Ranking(**ranking_dict)
         db_rankings.append(db_ranking)
@@ -451,7 +448,7 @@ async def websocket_monitoring(websocket: WebSocket, user_id: int, db: Session =
             await manager.broadcast({
                 "type": message.get("type"),
                 "user_id": user_id,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
             
             # Handle system monitoring update
@@ -460,7 +457,7 @@ async def websocket_monitoring(websocket: WebSocket, user_id: int, db: Session =
                 await manager.broadcast({
                     "type": "system_stats",
                     "data": stats,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 })
     
     except WebSocketDisconnect:
@@ -498,11 +495,11 @@ async def websocket_live_session(
 @app.get("/health")
 def health_check():
     """Health check endpoint"""
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 # ==================== Background Tasks ====================
 
-async def process_bulk_certificates(job_id: str, df, template_id: int, user_id: int, db: Session):
+async def process_bulk_certificates(job_id: str, df: Any, template_id: int, user_id: int, db: Session):
     """Process bulk certificate generation"""
     from certificate_engine.generator import CertificateBulkGenerator  # type: ignore
     
@@ -522,7 +519,7 @@ async def process_bulk_certificates(job_id: str, df, template_id: int, user_id: 
             job.successful_records = results['successful']
             job.failed_records = results['failed']
             job.status = models.JobStatus.completed
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now(timezone.utc)
             
             if results['errors']:
                 job.error_message = "\n".join(results['errors'])
