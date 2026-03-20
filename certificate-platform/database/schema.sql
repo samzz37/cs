@@ -83,7 +83,7 @@ CREATE TABLE rankings (
     grade VARCHAR(10),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (student_id) REFERENCES users(id),
+    FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE SET NULL,
     INDEX (marks),
     INDEX (rank_position),
     INDEX (department),
@@ -156,7 +156,7 @@ CREATE TABLE online_users (
     current_page VARCHAR(500),
     login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_activity TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX (user_id),
     INDEX (login_time)
 );
@@ -192,8 +192,6 @@ INSERT INTO settings (setting_key, setting_value, description, data_type) VALUES
 ('session_timeout_minutes', '30', 'Session timeout in minutes', 'integer'),
 ('certificate_expiry_days', '365', 'Certificate expiry period in days', 'integer');
 
--- Create index for better performance
-CREATE INDEX idx_certificates_student ON certificates(student_email);
-CREATE INDEX idx_certificates_template ON certificates(template_id);
-CREATE INDEX idx_rankings_marks ON rankings(marks DESC);
-CREATE INDEX idx_activity_logs_timestamp ON activity_logs(created_at DESC);
+-- Additional performance indexes
+CREATE INDEX idx_rankings_email ON rankings(student_email);
+CREATE INDEX idx_online_users_session ON online_users(session_id);

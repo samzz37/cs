@@ -15,17 +15,20 @@ import io
 import sys
 from pathlib import Path
 
+# Add parent directory to path for importing certificate-engine and exports modules
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 if TYPE_CHECKING:
-    from certificate_engine.generator import CertificateGenerator, CertificateBulkGenerator
-    from exports.exporter import RankingExporter, CertificateReportExporter
+    try:
+        from certificate_engine.generator import CertificateGenerator, CertificateBulkGenerator  # type: ignore
+        from exports.exporter import RankingExporter, CertificateReportExporter  # type: ignore
+    except ImportError:
+        pass
 
 from .database import get_db, engine, Base
 from . import models, schemas, crud
 from .auth import create_access_token, verify_token
 from .utils import QRCodeGenerator, CertificateNumberGenerator, SystemMonitor
-
-# Add parent directory to path for importing certificate-engine and exports modules
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -36,6 +39,10 @@ app = FastAPI(
     description="Real-time certificate management and monitoring",
     version="1.0.0"
 )
+
+@app.get("/")
+def root():
+    return {"message": "Backend is running 🚀"}
 
 # CORS configuration
 app.add_middleware(
@@ -254,7 +261,7 @@ def get_certificate(cert_id: int, db: Session = Depends(get_db)):
 @app.post("/api/certificates/{cert_id}/generate")
 def generate_certificate(cert_id: int, db: Session = Depends(get_db)):
     """Generate certificate PDF"""
-    from certificate_engine.generator import CertificateGenerator
+    from certificate_engine.generator import CertificateGenerator  # type: ignore
     
     cert = crud.CertificateCRUD.get_certificate(db, cert_id)
     if not cert:
@@ -497,7 +504,7 @@ def health_check():
 
 async def process_bulk_certificates(job_id: str, df, template_id: int, user_id: int, db: Session):
     """Process bulk certificate generation"""
-    from certificate_engine.generator import CertificateBulkGenerator
+    from certificate_engine.generator import CertificateBulkGenerator  # type: ignore
     
     job = db.query(models.BulkUploadJob).filter(
         models.BulkUploadJob.job_id == job_id

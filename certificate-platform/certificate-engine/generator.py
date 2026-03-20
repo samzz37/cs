@@ -12,10 +12,7 @@ from typing import Optional, Tuple, TYPE_CHECKING
 import json
 import sys
 from pathlib import Path
-
-if TYPE_CHECKING:
-    from app import crud
-    from app.utils import FileHelper
+from typing import Optional, Tuple, Any
 
 class CertificateGenerator:
     """Generate PDF certificates"""
@@ -172,11 +169,13 @@ class CertificateBulkGenerator:
     
     def process_batch(self, records: list, output_dir: str) -> dict:
         """Process batch of certificate records"""
-        import sys
-        from pathlib import Path
-        sys.path.insert(0, str(Path(__file__).parent.parent / 'backend'))
-        from app import crud
-        from app.utils import FileHelper
+        # Ensure backend is in path for imports
+        backend_path = str(Path(__file__).parent.parent / 'backend')
+        if backend_path not in sys.path:
+            sys.path.insert(0, backend_path)
+        
+        from app import crud  # type: ignore
+        from app.utils import FileHelper  # type: ignore
         
         results = {
             'successful': 0,

@@ -2,7 +2,7 @@
 Authentication utilities and JWT handling
 """
 from datetime import datetime, timedelta
-import jwt
+from jose import jwt 
 import os
 from typing import Optional
 

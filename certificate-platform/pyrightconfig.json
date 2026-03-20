@@ -13,15 +13,16 @@
         "**/node_modules",
         "**/__pycache__",
         "**/.*",
+        "**/.venv",
         "frontend",
         "logs",
         "exports/*.pyc"
     ],
     "extraPaths": [
-        "backend",
-        "."
+        ".",
+        "backend"
     ],
-    "reportMissingImports": false,
+    "reportMissingImports": true,
     "reportMissingModuleSource": false,
     "reportUndefinedVariable": false,
     "reportGeneralTypeIssues": true,
